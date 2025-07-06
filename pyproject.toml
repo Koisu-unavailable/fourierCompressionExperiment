@@ -1,0 +1,11 @@
+[project]
+name = "fouriertest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "matplotlib>=3.5.3",
+    "scipy>=1.7.3",
+    "sympy>=1.10.1",
+]
