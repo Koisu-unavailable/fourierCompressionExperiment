@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
+    "ipykernel>=6.16.2",
     "matplotlib>=3.5.3",
     "scipy>=1.7.3",
     "sympy>=1.10.1",
