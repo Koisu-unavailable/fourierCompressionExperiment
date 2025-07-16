@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
+    "cupy-cuda12x>=11.6.0",
     "ipykernel>=6.16.2",
     "matplotlib>=3.5.3",
+    "numba>=0.56.4",
     "scipy>=1.7.3",
     "sympy>=1.10.1",
+    "tqdm>=4.67.1",
 ]

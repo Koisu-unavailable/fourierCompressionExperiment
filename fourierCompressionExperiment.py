@@ -1,26 +1,26 @@
 import marimo
 
-__generated_with = "0.14.11"
+__generated_with = "0.8.22"
 app = marimo.App()
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo):
     mo.md(
         r"""
-    # Main idea
-    An audio file format that stores audio using fourier transforms to decompose the audio into its various signals and then storing the properties of the waves.
+        # Main idea
+        An audio file format that stores audio using fourier transforms to decompose the audio into its various signals and then storing the properties of the waves.
 
-    ## Steps to convert (from a wav file):
-    - Splits the audio into chunks (to make calculations faster)\
-    - Calculates the the fourier transform of each chunks
-    - Get each freqency from each wave from the chunk
-    - Write it to a file
+        ## Steps to convert (from a wav file):
+        - Splits the audio into chunks (to make calculations faster)\
+        - Calculates the the fourier transform of each chunks
+        - Get each freqency from each wave from the chunk
+        - Write it to a file
 
-    ## To reconstruct
-    - Sum up the waves given their frequencies
-    - Do an inverse fourier transform
-    """
+        ## To reconstruct
+        - Sum up the waves given their frequencies
+        - Do an inverse fourier transform
+        """
     )
     return
 
@@ -35,11 +35,12 @@ def _(mo):
 def _(wavfile):
     SAMPLE_RATE, data = wavfile.read('./input/BadApple.wav')
     data = data[:, 1]
-    # # chunks = [data[i:i + 25] for i in range(0, len(data), 25)]
-    # data = chunks[0]
+    chunk_size = len(data) // 10
+    chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+    data = chunks[0]
     DURATION = len(data) / SAMPLE_RATE
     SAMPLES = len(data)
-    return DURATION, SAMPLE_RATE, data
+    return DURATION, SAMPLES, SAMPLE_RATE, chunk_size, chunks, data
 
 
 @app.cell
@@ -50,7 +51,7 @@ def _(mo):
 
 @app.cell
 def _(DURATION, SAMPLE_RATE, data, np):
-    times = np.linspace(0, DURATION, 1000)
+    times = np.linspace(0, DURATION, int(DURATION*SAMPLE_RATE))
     signal_values = [data[int(time * SAMPLE_RATE) - 1] for time in times]
     return signal_values, times
 
@@ -76,13 +77,13 @@ def _(data, np, plt, signal_values, times):
 def _(mo):
     mo.md(
         """
-    Compute the actual freqeuncies. \n
-    1. We use `np.fftfreq` the get the frequencies that could appear in the fourier transform (i think) 
-    2. We find the peaks. The peaks correspond to the most prevalent frequencies 
-    3. We graph the fft along with the peaks
-    4. We append the frequency at `peak` to the `result` array
-    5. We reconstruct the signal using the `result`
-    """
+        Compute the actual freqeuncies. \n
+        1. We use `np.fftfreq` the get the frequencies that could appear in the fourier transform (i think) 
+        2. We find the peaks. The peaks correspond to the most prevalent frequencies 
+        3. We graph the fft along with the peaks
+        4. We append the frequency at `peak` to the `result` array
+        5. We reconstruct the signal using the `result`
+        """
     )
     return
 
@@ -104,7 +105,7 @@ def _(SAMPLE_RATE, data, fft, find_peaks, np, plt):
     @njit
     def func(x):
         ans  = 0
-   
+
         for peak in peaks:
             ans += np.sin(x * 2 * np.pi * frequencies[peak])
         return ans
@@ -113,25 +114,31 @@ def _(SAMPLE_RATE, data, fft, find_peaks, np, plt):
     # print(times_ran)
     # plt.title("Reconstructed wave")
     # plt.show()
-    return (func,)
+    return freqs, frequencies, func, njit, peak, peaks, props, times_ran
 
 
 @app.cell
 def _(mo):
-    mo.md("As you can see, the wave isn't very accurate, let's try a different method. We'll sample $\\omega$ amount of equidistant points from the graph ")
+    mo.md("""As you can see, the wave isn't very accurate, let's try a different method. We'll sample $\\omega$ amount of equidistant points from the graph""")
     return
 
 
 @app.cell
-def _(DURATION, SAMPLE_RATE, func, mo, np, plt, times, wavfile):
+def _(DURATION, SAMPLE_RATE, func, mo, njit, np, plt, times, wavfile):
     amount_slider = mo.ui.slider(1, 1000, label="$\\omega$", show_value=True)
     amount_slider
     _times = np.linspace(0, DURATION, int(DURATION * SAMPLE_RATE))
-    import tqdm
-    good = [func(x) for x in mo.status.progress_bar(_times)]
+    @njit(parallel=True)
+    def test(times):
+        result = []
+        for time in times:
+            result.append(func(time))
+        return result
+    good = test(times)
     wavfile.write("test.wav", SAMPLE_RATE,  np.array(good))
+
     plt.plot(times, good)
-    return amount_slider, good
+    return amount_slider, good, test
 
 
 @app.cell
@@ -148,22 +155,29 @@ def _(amount_slider, fft, np):
     amount = amount_slider.value
     distance_between_points = np.floor(len(fft) / amount)
     print(f"Sampling ~{amount} points ~{distance_between_points} apart")
-
-
-
-
-    return
+    return amount, distance_between_points, freqs2
 
 
 @app.cell
 def _():
     import marimo as mo
+    import marimo
     from scipy.io import wavfile
     from scipy.signal import find_peaks, butter, find_peaks_cwt
     import numpy as np
     import matplotlib.pyplot as plt
-
-    return find_peaks, mo, np, plt, wavfile
+    import cupy as cp
+    return (
+        butter,
+        cp,
+        find_peaks,
+        find_peaks_cwt,
+        marimo,
+        mo,
+        np,
+        plt,
+        wavfile,
+    )
 
 
 if __name__ == "__main__":
