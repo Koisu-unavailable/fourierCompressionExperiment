@@ -40,7 +40,7 @@ def _(wavfile):
 
 @app.cell
 def _(data, mo):
-    amount_of_chunks = mo.ui.slider(1, len(data)//100, label="Amount of chunks", value=len(data)//100)
+    amount_of_chunks = mo.ui.slider(2, len(data)//100, label="Amount of chunks", value=5)
     amount_of_chunks
     return (amount_of_chunks,)
 
@@ -112,22 +112,21 @@ def _(mo):
 
 @app.cell
 def _(SAMPLE_RATE, chunk, np, plt):
-    fft = np.fft.fft(chunk)
-    full_fft = fft
-    fft = fft[:len(fft) // 2]
-    frequencies = np.fft.fftfreq(chunk.size, d=1 / SAMPLE_RATE)[:chunk.size // 2]
+    fft = np.fft.rfft(chunk)
+
+    frequencies = np.fft.fftfreq(chunk.size, d=1 / SAMPLE_RATE)[:(chunk.size // 2)+1]
     plt.title("The fourier transform of the signal")
     plt.plot(frequencies, fft)
     plt.show()
 
-    return (full_fft,)
+    return (fft,)
 
 
 @app.cell
-def _(chunk, full_fft, np, plt, times):
+def _(chunk, fft, np, plt, times):
     plt.title("FFT vs. Normal")
     plt.plot(times, chunk, label="Orginal")
-    plt.plot(times, np.fft.ifft(full_fft), label="Fourier transformed, then inverse Fourier Transformed")
+    plt.plot(times, np.fft.irfft(fft), label="Fourier transformed, then inverse Fourier Transformed")
     plt.legend()
     return
 
@@ -140,19 +139,44 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    mo.md("We attempt to smooth it")
+    mo.md("""We attempt to smooth it""")
     return
 
 
 @app.cell
-def _(chunk, find_peaks, full_fft, np, plt, times):
-    peaks = find_peaks(full_fft)[0]
+def _(chunk, fft, find_peaks, njit, np, plt, times):
 
-    smooth_fft  = [value if list(full_fft).index(value) in peaks else 0 for value in full_fft]
+    @njit
+    def smooth(full_fft, peaks):
 
-    plt.plot(times, smooth_fft)
-    plt.plot(times, np.fft.ifft(smooth_fft))
-    plt.plot(times, chunk)
+
+        smooth_fft  = [value if list(full_fft).index(value) in peaks else 0 for value in full_fft]
+        return smooth_fft
+
+    def smooth_fft(fft):
+        peaks = find_peaks(fft)[0]
+        return smooth(fft, peaks)
+
+    smoothed = smooth_fft(fft)
+    audio_signal = np.fft.irfft(smoothed)
+    # plt.plot(times, normalise(smoothed), label="smoothed")
+    plt.plot(times, normalise(audio_signal), label="compressed")
+    plt.plot(times, normalise(chunk), label="origami")
+    plt.legend()
+
+
+    return (audio_signal,)
+
+
+@app.cell
+def _(mo):
+    mo.md("""# The final result!!!""")
+    return
+
+
+@app.cell
+def _(SAMPLE_RATE, audio_signal, mo):
+    mo.audio(audio_signal, rate=SAMPLE_RATE)
     return
 
 
@@ -173,7 +197,7 @@ def _():
     import matplotlib.pyplot as plt
     from numba import njit
     import random as rdm
-    return find_peaks, mo, np, plt, wavfile
+    return find_peaks, mo, njit, np, plt, wavfile
 
 
 if __name__ == "__main__":
